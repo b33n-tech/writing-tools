@@ -1,7 +1,13 @@
 import streamlit as st
 import json
 from io import BytesIO
-from docx import Document
+
+# ✅ Assure-toi d'avoir installé : pip install python-docx
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
 
 st.set_page_config(page_title="Mémoire Builder", layout="wide")
 
@@ -70,8 +76,9 @@ if st.sidebar.button("📥 Générer le JSON"):
         mime="application/json"
     )
 
-# --- Export DOCX ---
-def generate_docx(paragraphs):
+# --- Fonctions d'export DOCX ---
+def generate_docx_full(paragraphs):
+    """Export complet : texte, exemples, références."""
     doc = Document()
     doc.add_heading("Structure du mémoire", level=0)
     for i, p in enumerate(paragraphs, start=1):
@@ -88,18 +95,49 @@ def generate_docx(paragraphs):
     buffer.seek(0)
     return buffer
 
-st.sidebar.header("📝 Export DOCX")
-if st.sidebar.button("📤 Générer le DOCX"):
-    if st.session_state.paragraphs:
-        buffer = generate_docx(st.session_state.paragraphs)
-        st.sidebar.download_button(
-            label="⬇️ Télécharger le DOCX",
-            data=buffer,
-            file_name="memoire_structure.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-    else:
-        st.sidebar.warning("Aucun paragraphe à exporter.")
+
+def generate_docx_titles_only(paragraphs):
+    """Export simplifié : uniquement les sujets."""
+    doc = Document()
+    doc.add_heading("Plan du mémoire (titres seuls)", level=0)
+    for i, p in enumerate(paragraphs, start=1):
+        doc.add_heading(f"{i}. {p['sujet']}", level=1)
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+# --- Exports DOCX ---
+if DOCX_AVAILABLE:
+    st.sidebar.header("📝 Export DOCX")
+
+    # Export complet
+    if st.sidebar.button("📤 DOCX complet"):
+        if st.session_state.paragraphs:
+            buffer = generate_docx_full(st.session_state.paragraphs)
+            st.sidebar.download_button(
+                label="⬇️ Télécharger le DOCX complet",
+                data=buffer,
+                file_name="memoire_structure_complet.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+        else:
+            st.sidebar.warning("Aucun paragraphe à exporter.")
+
+    # Export titres seuls
+    if st.sidebar.button("📑 DOCX (titres seuls)"):
+        if st.session_state.paragraphs:
+            buffer = generate_docx_titles_only(st.session_state.paragraphs)
+            st.sidebar.download_button(
+                label="⬇️ Télécharger les titres",
+                data=buffer,
+                file_name="memoire_plan_titres.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+        else:
+            st.sidebar.warning("Aucun paragraphe à exporter.")
+else:
+    st.sidebar.warning("⚠️ python-docx n'est pas installé. Les exports DOCX sont désactivés.")
 
 # --- Aperçu JSON brut ---
 with st.expander("🧾 Aperçu du JSON généré"):
