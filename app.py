@@ -1,11 +1,12 @@
 import streamlit as st
 import json
-from io import StringIO
+from io import BytesIO
+from docx import Document
 
 st.set_page_config(page_title="Mémoire Builder", layout="wide")
 
 st.title("🧠 Mémoire Builder")
-st.write("Crée, sauvegarde et recharge la structure de ton mémoire (paragraphes, exemples, références).")
+st.write("Crée, sauvegarde et recharge la structure de ton mémoire (sujets, paragraphes, exemples, références).")
 
 # --- Initialisation du state ---
 if "paragraphs" not in st.session_state:
@@ -25,6 +26,7 @@ if uploaded_file is not None:
 # --- Fonction pour ajouter un paragraphe ---
 def add_paragraph():
     st.session_state.paragraphs.append({
+        "sujet": "",
         "texte": "",
         "exemples": "",
         "references": ""
@@ -40,7 +42,10 @@ if len(st.session_state.paragraphs) == 0:
     st.info("Aucun paragraphe pour l'instant. Clique sur ➕ pour commencer.")
 else:
     for i, para in enumerate(st.session_state.paragraphs):
-        with st.expander(f"Paragraphe {i+1}", expanded=True):
+        with st.expander(f"Paragraphe {i+1} : {para['sujet'] or 'sans sujet'}", expanded=True):
+            st.session_state.paragraphs[i]["sujet"] = st.text_input(
+                f"Sujet-clé (#{i+1})", para["sujet"], key=f"sujet_{i}"
+            )
             st.session_state.paragraphs[i]["texte"] = st.text_area(
                 f"Texte principal (#{i+1})", para["texte"], height=150, key=f"txt_{i}"
             )
@@ -55,15 +60,46 @@ else:
                 st.experimental_rerun()
 
 # --- Téléchargement JSON ---
-st.sidebar.header("💾 Sauvegarde")
-if st.sidebar.button("📥 Télécharger JSON"):
+st.sidebar.header("💾 Sauvegarde JSON")
+if st.sidebar.button("📥 Générer le JSON"):
     json_data = json.dumps(st.session_state.paragraphs, indent=2, ensure_ascii=False)
     st.sidebar.download_button(
-        label="⬇️ Télécharger le fichier",
+        label="⬇️ Télécharger JSON",
         data=json_data,
         file_name="memoire_data.json",
         mime="application/json"
     )
+
+# --- Export DOCX ---
+def generate_docx(paragraphs):
+    doc = Document()
+    doc.add_heading("Structure du mémoire", level=0)
+    for i, p in enumerate(paragraphs, start=1):
+        doc.add_heading(f"Paragraphe {i} : {p['sujet']}", level=1)
+        if p["texte"]:
+            doc.add_paragraph(p["texte"])
+        if p["exemples"]:
+            doc.add_paragraph(f"🧩 Exemples : {p['exemples']}")
+        if p["references"]:
+            doc.add_paragraph(f"📚 Références : {p['references']}")
+        doc.add_paragraph("")  # ligne vide
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+st.sidebar.header("📝 Export DOCX")
+if st.sidebar.button("📤 Générer le DOCX"):
+    if st.session_state.paragraphs:
+        buffer = generate_docx(st.session_state.paragraphs)
+        st.sidebar.download_button(
+            label="⬇️ Télécharger le DOCX",
+            data=buffer,
+            file_name="memoire_structure.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    else:
+        st.sidebar.warning("Aucun paragraphe à exporter.")
 
 # --- Aperçu JSON brut ---
 with st.expander("🧾 Aperçu du JSON généré"):
